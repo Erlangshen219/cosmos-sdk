@@ -1,7 +1,7 @@
 package node
 
 import (
-	context "context"
+	"context"
 
 	gogogrpc "github.com/cosmos/gogoproto/grpc"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
@@ -42,6 +42,7 @@ func (s queryServer) Config(ctx context.Context, _ *ConfigRequest) (*ConfigRespo
 		MinimumGasPrice:   sdkCtx.MinGasPrices().String(),
 		PruningKeepRecent: s.cfg.PruningKeepRecent,
 		PruningInterval:   s.cfg.PruningInterval,
+		HaltHeight:        s.cfg.HaltHeight,
 	}, nil
 }
 

@@ -10,7 +10,7 @@ import (
 
 type (
 	// Codec defines a functionality for serializing other objects.
-	// Users can defin a custom Protobuf-based serialization.
+	// Users can define a custom Protobuf-based serialization.
 	// Note, Amino can still be used without any dependency on Protobuf.
 	// SDK provides to Codec implementations:
 	//
@@ -59,7 +59,7 @@ type (
 		// MustUnmarshal calls Unmarshal and panics if error is returned.
 		MustUnmarshal(bz []byte, ptr proto.Message)
 
-		// Unmarshal parses the data encoded with UnmarshalLengthPrefixed method and stores
+		// UnmarshalLengthPrefixed parses the data encoded with UnmarshalLengthPrefixed method and stores
 		// the result in the value pointed to by v.
 		UnmarshalLengthPrefixed(bz []byte, ptr proto.Message) error
 		// MustUnmarshalLengthPrefixed calls UnmarshalLengthPrefixed and panics if error

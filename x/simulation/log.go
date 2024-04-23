@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// log writter
+// log writer
 type LogWriter interface {
 	AddEntry(OperationEntry)
 	PrintLogs()
@@ -22,12 +22,12 @@ func NewLogWriter(testingmode bool) LogWriter {
 	return &StandardLogWriter{}
 }
 
-// log writter
+// log writer
 type StandardLogWriter struct {
 	OpEntries []OperationEntry `json:"op_entries" yaml:"op_entries"`
 }
 
-// add an entry to the log writter
+// add an entry to the log writer
 func (lw *StandardLogWriter) AddEntry(opEntry OperationEntry) {
 	lw.OpEntries = append(lw.OpEntries, opEntry)
 }
@@ -49,7 +49,7 @@ func (lw *StandardLogWriter) PrintLogs() {
 func createLogFile() *os.File {
 	var f *os.File
 
-	fileName := fmt.Sprintf("%s.log", time.Now().Format("2006-01-02_15:04:05"))
+	fileName := fmt.Sprintf("%d.log", time.Now().UnixMilli())
 	folderPath := path.Join(os.ExpandEnv("$HOME"), ".simapp", "simulations")
 	filePath := path.Join(folderPath, fileName)
 
@@ -67,7 +67,7 @@ func createLogFile() *os.File {
 	return f
 }
 
-// dummy log writter
+// dummy log writer
 type DummyLogWriter struct{}
 
 // do nothing

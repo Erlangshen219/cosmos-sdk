@@ -25,8 +25,6 @@ import (
 // TODO: Some of the invalid constraints listed above may need to be reconsidered
 // in the case of a lunatic attack.
 func (k Keeper) handleEquivocationEvidence(ctx context.Context, evidence *types.Equivocation) error {
-	sdkCtx := sdk.UnwrapSDKContext(ctx)
-	logger := k.Logger(ctx)
 	consAddr := evidence.GetConsensusAddress(k.stakingKeeper.ConsensusAddressCodec())
 
 	validator, err := k.stakingKeeper.ValidatorByConsAddr(ctx, consAddr)
@@ -40,6 +38,15 @@ func (k Keeper) handleEquivocationEvidence(ctx context.Context, evidence *types.
 	}
 
 	if len(validator.GetOperator()) != 0 {
+		// Get the consAddr from the validator read from the store and not from the evidence,
+		// because if the validator has rotated its key, the key in evidence could be outdated.
+		// (ValidatorByConsAddr can get a validator even if the key has been rotated)
+		valConsAddr, err := validator.GetConsAddr()
+		if err != nil {
+			return err
+		}
+		consAddr = valConsAddr
+
 		if _, err := k.slashingKeeper.GetPubkey(ctx, consAddr.Bytes()); err != nil {
 			// Ignore evidence that cannot be handled.
 			//
@@ -50,24 +57,26 @@ func (k Keeper) handleEquivocationEvidence(ctx context.Context, evidence *types.
 			// allowable but none of the disallowed evidence types.  Instead of
 			// getting this coordination right, it is easier to relax the
 			// constraints and ignore evidence that cannot be handled.
-			logger.Error(fmt.Sprintf("ignore evidence; expected public key for validator %s not found", consAddr))
+			k.Logger.Error(fmt.Sprintf("ignore evidence; expected public key for validator %s not found", consAddr))
 			return nil
 		}
 	}
 
+	headerInfo := k.HeaderService.HeaderInfo(ctx)
 	// calculate the age of the evidence
 	infractionHeight := evidence.GetHeight()
 	infractionTime := evidence.GetTime()
-	ageDuration := sdkCtx.HeaderInfo().Time.Sub(infractionTime)
-	ageBlocks := sdkCtx.BlockHeader().Height - infractionHeight
+	ageDuration := headerInfo.Time.Sub(infractionTime)
+	ageBlocks := headerInfo.Height - infractionHeight
 
 	// Reject evidence if the double-sign is too old. Evidence is considered stale
 	// if the difference in time and number of blocks is greater than the allowed
 	// parameters defined.
-	cp := sdkCtx.ConsensusParams()
+	sdkCtx := sdk.UnwrapSDKContext(ctx)
+	cp := sdkCtx.ConsensusParams() // TODO: remove in favor of querying consensus module
 	if cp.Evidence != nil {
 		if ageDuration > cp.Evidence.MaxAgeDuration && ageBlocks > cp.Evidence.MaxAgeNumBlocks {
-			logger.Info(
+			k.Logger.Info(
 				"ignored equivocation; evidence too old",
 				"validator", consAddr,
 				"infraction_height", infractionHeight,
@@ -85,7 +94,7 @@ func (k Keeper) handleEquivocationEvidence(ctx context.Context, evidence *types.
 
 	// ignore if the validator is already tombstoned
 	if k.slashingKeeper.IsTombstoned(ctx, consAddr) {
-		logger.Info(
+		k.Logger.Info(
 			"ignored equivocation; validator already tombstoned",
 			"validator", consAddr,
 			"infraction_height", infractionHeight,
@@ -94,7 +103,7 @@ func (k Keeper) handleEquivocationEvidence(ctx context.Context, evidence *types.
 		return nil
 	}
 
-	logger.Info(
+	k.Logger.Info(
 		"confirmed equivocation",
 		"validator", consAddr,
 		"infraction_height", infractionHeight,

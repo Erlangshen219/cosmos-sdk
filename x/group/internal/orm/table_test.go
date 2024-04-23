@@ -13,7 +13,10 @@ import (
 	"cosmossdk.io/x/group/errors"
 
 	"github.com/cosmos/cosmos-sdk/codec"
+	"github.com/cosmos/cosmos-sdk/codec/address"
 	"github.com/cosmos/cosmos-sdk/codec/types"
+	"github.com/cosmos/cosmos-sdk/runtime"
+	"github.com/cosmos/cosmos-sdk/testutil"
 	"github.com/cosmos/cosmos-sdk/testutil/testdata"
 	sdkerrors "github.com/cosmos/cosmos-sdk/types/errors"
 )
@@ -43,7 +46,7 @@ func TestNewTable(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			table, err := newTable([2]byte{0x1}, tc.model, cdc)
+			table, err := newTable([2]byte{0x1}, tc.model, cdc, address.NewBech32Codec("cosmos"))
 			if tc.expectErr {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.expectedErr)
@@ -98,11 +101,12 @@ func TestCreate(t *testing.T) {
 			interfaceRegistry := types.NewInterfaceRegistry()
 			cdc := codec.NewProtoCodec(interfaceRegistry)
 
-			ctx := NewMockContext()
-			store := ctx.KVStore(storetypes.NewKVStoreKey("test"))
+			key := storetypes.NewKVStoreKey("test")
+			testCtx := testutil.DefaultContextWithDB(t, key, storetypes.NewTransientStoreKey("transient_test"))
+			store := runtime.NewKVStoreService(key).OpenKVStore(testCtx.Ctx)
 
 			anyPrefix := [2]byte{0x10}
-			myTable, err := newTable(anyPrefix, &testdata.TableModel{}, cdc)
+			myTable, err := newTable(anyPrefix, &testdata.TableModel{}, cdc, address.NewBech32Codec("cosmos"))
 			require.NoError(t, err)
 
 			err = myTable.Create(store, spec.rowID, spec.src)
@@ -155,11 +159,12 @@ func TestUpdate(t *testing.T) {
 			interfaceRegistry := types.NewInterfaceRegistry()
 			cdc := codec.NewProtoCodec(interfaceRegistry)
 
-			ctx := NewMockContext()
-			store := ctx.KVStore(storetypes.NewKVStoreKey("test"))
+			key := storetypes.NewKVStoreKey("test")
+			testCtx := testutil.DefaultContextWithDB(t, key, storetypes.NewTransientStoreKey("transient_test"))
+			store := runtime.NewKVStoreService(key).OpenKVStore(testCtx.Ctx)
 
 			anyPrefix := [2]byte{0x10}
-			myTable, err := newTable(anyPrefix, &testdata.TableModel{}, cdc)
+			myTable, err := newTable(anyPrefix, &testdata.TableModel{}, cdc, address.NewBech32Codec("cosmos"))
 			require.NoError(t, err)
 
 			initValue := testdata.TableModel{
@@ -204,11 +209,12 @@ func TestDelete(t *testing.T) {
 			interfaceRegistry := types.NewInterfaceRegistry()
 			cdc := codec.NewProtoCodec(interfaceRegistry)
 
-			ctx := NewMockContext()
-			store := ctx.KVStore(storetypes.NewKVStoreKey("test"))
+			key := storetypes.NewKVStoreKey("test")
+			testCtx := testutil.DefaultContextWithDB(t, key, storetypes.NewTransientStoreKey("transient_test"))
+			store := runtime.NewKVStoreService(key).OpenKVStore(testCtx.Ctx)
 
 			anyPrefix := [2]byte{0x10}
-			myTable, err := newTable(anyPrefix, &testdata.TableModel{}, cdc)
+			myTable, err := newTable(anyPrefix, &testdata.TableModel{}, cdc, address.NewBech32Codec("cosmos"))
 			require.NoError(t, err)
 
 			initValue := testdata.TableModel{

@@ -8,9 +8,9 @@ import (
 
 	"cosmossdk.io/collections"
 	collcodec "cosmossdk.io/collections/codec"
-	"cosmossdk.io/core/store"
+	"cosmossdk.io/core/appmodule"
+	"cosmossdk.io/core/event"
 	errorsmod "cosmossdk.io/errors"
-	"cosmossdk.io/log"
 	"cosmossdk.io/x/distribution/types"
 
 	"github.com/cosmos/cosmos-sdk/codec"
@@ -20,19 +20,22 @@ import (
 
 // Keeper of the distribution store
 type Keeper struct {
-	storeService  store.KVStoreService
+	appmodule.Environment
+
 	cdc           codec.BinaryCodec
 	authKeeper    types.AccountKeeper
 	bankKeeper    types.BankKeeper
 	stakingKeeper types.StakingKeeper
-	poolKeeper    types.PoolKeeper // TODO: Needs to be removed in v0.53
+	poolKeeper    types.PoolKeeper
 
 	// the address capable of executing a MsgUpdateParams message. Typically, this
 	// should be the x/gov module account.
 	authority string
 
-	Schema  collections.Schema
-	Params  collections.Item[types.Params]
+	Schema collections.Schema
+	Params collections.Item[types.Params]
+	// FeePool stores decimal tokens that cannot be yet distributed.
+	// In the past it held the community pool, but it has been replaced by x/protocolpool.
 	FeePool collections.Item[types.FeePool]
 	// DelegatorsWithdrawAddress key: delAddr | value: withdrawAddr
 	DelegatorsWithdrawAddress collections.Map[sdk.AccAddress, sdk.AccAddress]
@@ -55,7 +58,7 @@ type Keeper struct {
 
 // NewKeeper creates a new distribution Keeper instance
 func NewKeeper(
-	cdc codec.BinaryCodec, storeService store.KVStoreService,
+	cdc codec.BinaryCodec, env appmodule.Environment,
 	ak types.AccountKeeper, bk types.BankKeeper, sk types.StakingKeeper, pk types.PoolKeeper,
 	feeCollectorName, authority string,
 ) Keeper {
@@ -64,9 +67,9 @@ func NewKeeper(
 		panic(fmt.Sprintf("%s module account has not been set", types.ModuleName))
 	}
 
-	sb := collections.NewSchemaBuilder(storeService)
+	sb := collections.NewSchemaBuilder(env.KVStoreService)
 	k := Keeper{
-		storeService:     storeService,
+		Environment:      env,
 		cdc:              cdc,
 		authKeeper:       ak,
 		bankKeeper:       bk,
@@ -142,12 +145,6 @@ func (k Keeper) GetAuthority() string {
 	return k.authority
 }
 
-// Logger returns a module-specific logger.
-func (k Keeper) Logger(ctx context.Context) log.Logger {
-	sdkCtx := sdk.UnwrapSDKContext(ctx)
-	return sdkCtx.Logger().With(log.ModuleKey, "x/"+types.ModuleName)
-}
-
 // SetWithdrawAddr sets a new address that will receive the rewards upon withdrawal
 func (k Keeper) SetWithdrawAddr(ctx context.Context, delegatorAddr, withdrawAddr sdk.AccAddress) error {
 	if k.bankKeeper.BlockedAddr(withdrawAddr) {
@@ -163,13 +160,17 @@ func (k Keeper) SetWithdrawAddr(ctx context.Context, delegatorAddr, withdrawAddr
 		return types.ErrSetWithdrawAddrDisabled
 	}
 
-	sdkCtx := sdk.UnwrapSDKContext(ctx)
-	sdkCtx.EventManager().EmitEvent(
-		sdk.NewEvent(
-			types.EventTypeSetWithdrawAddress,
-			sdk.NewAttribute(types.AttributeKeyWithdrawAddress, withdrawAddr.String()),
-		),
-	)
+	addr, err := k.authKeeper.AddressCodec().BytesToString(withdrawAddr)
+	if err != nil {
+		return err
+	}
+
+	if err = k.EventService.EventManager(ctx).EmitKV(
+		types.EventTypeSetWithdrawAddress,
+		event.NewAttribute(types.AttributeKeyWithdrawAddress, addr),
+	); err != nil {
+		return err
+	}
 
 	return k.DelegatorsWithdrawAddress.Set(ctx, delegatorAddr, withdrawAddr)
 }
@@ -249,13 +250,13 @@ func (k Keeper) WithdrawValidatorCommission(ctx context.Context, valAddr sdk.Val
 		}
 	}
 
-	sdkCtx := sdk.UnwrapSDKContext(ctx)
-	sdkCtx.EventManager().EmitEvent(
-		sdk.NewEvent(
-			types.EventTypeWithdrawCommission,
-			sdk.NewAttribute(sdk.AttributeKeyAmount, commission.String()),
-		),
+	err = k.EventService.EventManager(ctx).EmitKV(
+		types.EventTypeWithdrawCommission,
+		event.NewAttribute(sdk.AttributeKeyAmount, commission.String()),
 	)
+	if err != nil {
+		return nil, err
+	}
 
 	return commission, nil
 }

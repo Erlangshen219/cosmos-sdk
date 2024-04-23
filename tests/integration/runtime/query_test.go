@@ -14,6 +14,7 @@ import (
 	reflectionv1 "cosmossdk.io/api/cosmos/reflection/v1"
 	"cosmossdk.io/depinject"
 	"cosmossdk.io/log"
+	_ "cosmossdk.io/x/accounts"
 	_ "cosmossdk.io/x/auth"
 	_ "cosmossdk.io/x/auth/tx/config"
 	_ "cosmossdk.io/x/bank"
@@ -42,6 +43,7 @@ func initFixture(t assert.TestingT) *fixture {
 	app, err := simtestutil.Setup(
 		depinject.Configs(
 			configurator.NewAppConfig(
+				configurator.AccountsModule(),
 				configurator.AuthModule(),
 				configurator.TxModule(),
 				configurator.ConsensusModule(),
@@ -64,30 +66,6 @@ func initFixture(t assert.TestingT) *fixture {
 	f.reflectionClient = reflectionv1.NewReflectionServiceClient(queryHelper)
 
 	return f
-}
-
-func TestQueryAppConfig(t *testing.T) {
-	t.Parallel()
-	f := initFixture(t)
-
-	res, err := f.appQueryClient.Config(f.ctx, &appv1alpha1.QueryConfigRequest{})
-	assert.NilError(t, err)
-	// app config is not nil
-	assert.Assert(t, res != nil && res.Config != nil)
-
-	moduleConfigs := map[string]*appv1alpha1.ModuleConfig{}
-	for _, module := range res.Config.Modules {
-		moduleConfigs[module.Name] = module
-	}
-
-	// has all expected modules
-	for _, modName := range []string{"auth", "bank", "tx", "consensus", "runtime", "staking"} {
-		modConfig := moduleConfigs[modName]
-		if modConfig == nil {
-			t.Fatalf("missing %s", modName)
-		}
-		assert.Assert(t, modConfig.Config != nil)
-	}
 }
 
 func TestReflectionService(t *testing.T) {

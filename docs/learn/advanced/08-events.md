@@ -10,7 +10,7 @@ sidebar_position: 1
 :::note Pre-requisite Readings
 
 * [Anatomy of a Cosmos SDK application](../beginner/00-app-anatomy.md)
-* [CometBFT Documentation on Events](https://docs.cometbft.com/v0.37/spec/abci/abci++_basic_concepts#events)
+* [CometBFT Documentation on Events](https://docs.cometbft.com/v1.0/spec/abci/abci++_basic_concepts#events)
 
 :::
 
@@ -49,7 +49,7 @@ Lastly, Events are returned to the underlying consensus engine in the response o
 * [`Transaction Execution`](./00-baseapp.md#transactionexecution)
 
 ### Examples
-
+<!-- markdown-link-check-disable -->
 The following examples show how to query Events using the Cosmos SDK.
 
 | Event                                            | Description                                                                                                                                              |
@@ -58,7 +58,7 @@ The following examples show how to query Events using the Cosmos SDK.
 | `message.action='/cosmos.bank.v1beta1.Msg/Send'` | Query all transactions containing a x/bank `Send` [Service `Msg`](../../build/building-modules/03-msg-services.md). Note the `'`s around the value.                  |
 | `message.module='bank'`                          | Query all transactions containing messages from the x/bank module. Note the `'`s around the value.                                                       |
 | `create_validator.validator='cosmosval1...'`     | x/staking-specific Event, see [x/staking SPEC](../../build/modules/staking/README.md).                                                         |
-
+<!-- markdown-link-check-enable -->
 ## EventManager
 
 In Cosmos SDK applications, Events are managed by an abstraction called the `EventManager`.
@@ -103,7 +103,7 @@ view on how to typically implement Events and use the `EventManager` in modules.
 
 ## Subscribing to Events
 
-You can use CometBFT's [Websocket](https://docs.cometbft.com/v0.37/core/subscription) to subscribe to Events by calling the `subscribe` RPC method:
+You can use CometBFT's [Websocket](https://docs.cometbft.com/v1.0/explanation/core/subscription) to subscribe to Events by calling the `subscribe` RPC method:
 
 ```json
 {

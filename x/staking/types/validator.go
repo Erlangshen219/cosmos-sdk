@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	abci "github.com/cometbft/cometbft/abci/types"
 	cmtprotocrypto "github.com/cometbft/cometbft/proto/tendermint/crypto"
 
 	"cosmossdk.io/core/address"
+	"cosmossdk.io/core/appmodule"
 	"cosmossdk.io/errors"
 	"cosmossdk.io/math"
 
@@ -38,7 +38,7 @@ var (
 	BondStatusBonded      = BondStatus_name[int32(Bonded)]
 )
 
-var _ ValidatorI = Validator{}
+var _ sdk.ValidatorI = Validator{}
 
 // NewValidator constructs a new Validator
 func NewValidator(operator string, pubKey cryptotypes.PubKey, description Description) (Validator, error) {
@@ -78,7 +78,7 @@ func (v Validators) String() (out string) {
 }
 
 // ToSDKValidators -  convenience function convert []Validator to []sdk.ValidatorI
-func (v Validators) ToSDKValidators() (validators []ValidatorI) {
+func (v Validators) ToSDKValidators() (validators []sdk.ValidatorI) {
 	for _, val := range v.Validators {
 		validators = append(validators, val)
 	}
@@ -173,17 +173,17 @@ func UnmarshalValidator(cdc codec.BinaryCodec, value []byte) (v Validator, err e
 
 // IsBonded checks if the validator status equals Bonded
 func (v Validator) IsBonded() bool {
-	return v.GetStatus() == Bonded
+	return v.GetStatus() == sdk.Bonded
 }
 
 // IsUnbonded checks if the validator status equals Unbonded
 func (v Validator) IsUnbonded() bool {
-	return v.GetStatus() == Unbonded
+	return v.GetStatus() == sdk.Unbonded
 }
 
 // IsUnbonding checks if the validator status equals Unbonding
 func (v Validator) IsUnbonding() bool {
-	return v.GetStatus() == Unbonding
+	return v.GetStatus() == sdk.Unbonding
 }
 
 // constant used in flags to indicate that description field should not be updated
@@ -256,31 +256,35 @@ func (d Description) EnsureLength() (Description, error) {
 	return d, nil
 }
 
-// ABCIValidatorUpdate returns an abci.ValidatorUpdate from a staking validator type
-// with the full validator power
-func (v Validator) ABCIValidatorUpdate(r math.Int) abci.ValidatorUpdate {
-	tmProtoPk, err := v.TmConsPublicKey()
+// ModuleValidatorUpdate returns a appmodule.ValidatorUpdate from a staking validator type
+// with the full validator power.
+// It replaces the previous ABCIValidatorUpdate function.
+func (v Validator) ModuleValidatorUpdate(r math.Int) appmodule.ValidatorUpdate {
+	consPk, err := v.ConsPubKey()
 	if err != nil {
 		panic(err)
 	}
 
-	return abci.ValidatorUpdate{
-		PubKey: tmProtoPk,
-		Power:  v.ConsensusPower(r),
+	return appmodule.ValidatorUpdate{
+		PubKey:     consPk.Bytes(),
+		PubKeyType: consPk.Type(),
+		Power:      v.ConsensusPower(r),
 	}
 }
 
-// ABCIValidatorUpdateZero returns an abci.ValidatorUpdate from a staking validator type
+// ModuleValidatorUpdateZero returns a appmodule.ValidatorUpdate from a staking validator type
 // with zero power used for validator updates.
-func (v Validator) ABCIValidatorUpdateZero() abci.ValidatorUpdate {
-	tmProtoPk, err := v.TmConsPublicKey()
+// It replaces the previous ABCIValidatorUpdateZero function.
+func (v Validator) ModuleValidatorUpdateZero() appmodule.ValidatorUpdate {
+	consPk, err := v.ConsPubKey()
 	if err != nil {
 		panic(err)
 	}
 
-	return abci.ValidatorUpdate{
-		PubKey: tmProtoPk,
-		Power:  0,
+	return appmodule.ValidatorUpdate{
+		PubKey:     consPk.Bytes(),
+		PubKeyType: consPk.Type(),
+		Power:      0,
 	}
 }
 
@@ -456,9 +460,9 @@ func (v *Validator) Equal(v2 *Validator) bool {
 		v.UnbondingTime.Equal(v2.UnbondingTime)
 }
 
-func (v Validator) IsJailed() bool        { return v.Jailed }
-func (v Validator) GetMoniker() string    { return v.Description.Moniker }
-func (v Validator) GetStatus() BondStatus { return v.Status }
+func (v Validator) IsJailed() bool            { return v.Jailed }
+func (v Validator) GetMoniker() string        { return v.Description.Moniker }
+func (v Validator) GetStatus() sdk.BondStatus { return sdk.BondStatus(v.Status) }
 func (v Validator) GetOperator() string {
 	return v.OperatorAddress
 }
@@ -471,11 +475,6 @@ func (v Validator) ConsPubKey() (cryptotypes.PubKey, error) {
 	}
 
 	return pk, nil
-}
-
-// Deprecated: use CmtConsPublicKey instead
-func (v Validator) TmConsPublicKey() (cmtprotocrypto.PublicKey, error) {
-	return v.CmtConsPublicKey()
 }
 
 // CmtConsPublicKey casts Validator.ConsensusPubkey to cmtprotocrypto.PubKey.
@@ -491,6 +490,12 @@ func (v Validator) CmtConsPublicKey() (cmtprotocrypto.PublicKey, error) {
 	}
 
 	return tmPk, nil
+}
+
+// Deprecated: use CmtConsPublicKey instead
+// We do not delete this function as it is part of the ValidatorI interface
+func (v Validator) TmConsPublicKey() (cmtprotocrypto.PublicKey, error) {
+	return v.CmtConsPublicKey()
 }
 
 // GetConsAddr extracts Consensus key address

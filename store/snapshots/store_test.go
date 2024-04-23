@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"sync"
 	"testing"
 	"time"
 
-	db "github.com/cosmos/cosmos-db"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -17,7 +17,7 @@ import (
 
 func setupStore(t *testing.T) *snapshots.Store {
 	t.Helper()
-	store, err := snapshots.NewStore(db.NewMemDB(), GetTempDir(t))
+	store, err := snapshots.NewStore(t.TempDir())
 	require.NoError(t, err)
 
 	_, err = store.Save(1, 1, makeChunks([][]byte{
@@ -41,14 +41,13 @@ func setupStore(t *testing.T) *snapshots.Store {
 }
 
 func TestNewStore(t *testing.T) {
-	tempdir := GetTempDir(t)
-	_, err := snapshots.NewStore(db.NewMemDB(), tempdir)
+	_, err := snapshots.NewStore(t.TempDir())
 
 	require.NoError(t, err)
 }
 
 func TestNewStore_ErrNoDir(t *testing.T) {
-	_, err := snapshots.NewStore(db.NewMemDB(), "")
+	_, err := snapshots.NewStore("")
 	require.Error(t, err)
 }
 
@@ -320,11 +319,15 @@ func TestStore_Save(t *testing.T) {
 	// Saving a snapshot should error if a snapshot is already in progress for the same height,
 	// regardless of format. However, a different height should succeed.
 	ch = make(chan io.ReadCloser)
+	mtx := sync.Mutex{}
+	mtx.Lock()
 	go func() {
+		mtx.Unlock()
 		_, err := store.Save(7, 1, ch)
 		require.NoError(t, err)
 	}()
-	time.Sleep(10 * time.Millisecond)
+	mtx.Lock()
+	defer mtx.Unlock()
 	_, err = store.Save(7, 2, makeChunks(nil))
 	require.Error(t, err)
 	_, err = store.Save(8, 1, makeChunks(nil))

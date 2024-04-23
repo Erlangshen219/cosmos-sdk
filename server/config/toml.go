@@ -18,7 +18,7 @@ const DefaultConfigTemplate = `# This is a TOML config file.
 
 # The minimum gas prices a validator is willing to accept for processing a
 # transaction. A transaction's fees must meet the minimum of any denomination
-# specified in this config (e.g. 0.25token1;0.0001token2).
+# specified in this config (e.g. 0.25token1,0.0001token2).
 minimum-gas-prices = "{{ .BaseConfig.MinGasPrices }}"
 
 # The maximum gas a query coming over rest/grpc may consume.
@@ -58,7 +58,7 @@ halt-time = {{ .BaseConfig.HaltTime }}
 # It has no bearing on application state pruning which is determined by the
 # "pruning-*" configurations.
 #
-# Note: CometBFT block pruning is dependant on this parameter in conjunction
+# Note: CometBFT block pruning is dependent on this parameter in conjunction
 # with the unbonding (safety threshold) period, state pruning and state sync
 # snapshot parameters to determine the correct minimum value of
 # ResponseCommit.RetainHeight.
@@ -121,6 +121,17 @@ global-labels = [{{ range $k, $v := .Telemetry.GlobalLabels }}
   ["{{index $v 0 }}", "{{ index $v 1}}"],{{ end }}
 ]
 
+# MetricsSink defines the type of metrics sink to use.
+metrics-sink = "{{ .Telemetry.MetricsSink }}"
+
+# StatsdAddr defines the address of a statsd server to send metrics to.
+# Only utilized if MetricsSink is set to "statsd" or "dogstatsd".
+statsd-addr = "{{ .Telemetry.StatsdAddr }}"
+
+# DatadogHostname defines the hostname to use when emitting metrics to
+# Datadog. Only utilized if MetricsSink is set to "dogstatsd".
+datadog-hostname = "{{ .Telemetry.DatadogHostname }}"
+
 ###############################################################################
 ###                           API Configuration                             ###
 ###############################################################################
@@ -172,17 +183,6 @@ max-recv-msg-size = "{{ .GRPC.MaxRecvMsgSize }}"
 max-send-msg-size = "{{ .GRPC.MaxSendMsgSize }}"
 
 ###############################################################################
-###                        gRPC Web Configuration                           ###
-###############################################################################
-
-[grpc-web]
-
-# GRPCWebEnable defines if the gRPC-web should be enabled.
-# NOTE: gRPC must also be enabled, otherwise, this configuration is a no-op.
-# NOTE: gRPC-Web uses the same address as the API server.
-enable = {{ .GRPCWeb.Enable }}
-
-###############################################################################
 ###                        State Sync Configuration                         ###
 ###############################################################################
 
@@ -229,7 +229,7 @@ stop-node-on-err = {{ .Streaming.ABCI.StopNodeOnErr }}
 
 [mempool]
 # Setting max-txs to 0 will allow for a unbounded amount of transactions in the mempool.
-# Setting max_txs to negative 1 (-1) will disable transactions from being inserted into the mempool.
+# Setting max_txs to negative 1 (-1) will disable transactions from being inserted into the mempool (no-op mempool).
 # Setting max_txs to a positive number (> 0) will limit the number of transactions in the mempool, by the specified amount.
 #
 # Note, this configuration only applies to SDK built-in app-side mempool

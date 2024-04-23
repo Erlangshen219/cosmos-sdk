@@ -25,6 +25,7 @@ import (
 	sdkmath "cosmossdk.io/math"
 	"cosmossdk.io/math/unsafe"
 	pruningtypes "cosmossdk.io/store/pruning/types"
+	_ "cosmossdk.io/x/accounts"
 	_ "cosmossdk.io/x/auth"           // import auth as a blank
 	_ "cosmossdk.io/x/auth/tx/config" // import auth tx config as a blank
 	authtypes "cosmossdk.io/x/auth/types"
@@ -129,8 +130,8 @@ type Config struct {
 
 	// Address codecs
 	AddressCodec          address.Codec                 // address codec
-	ValidatorAddressCodec runtime.ValidatorAddressCodec // validator address codec
-	ConsensusAddressCodec runtime.ConsensusAddressCodec // consensus address codec
+	ValidatorAddressCodec address.ValidatorAddressCodec // validator address codec
+	ConsensusAddressCodec address.ConsensusAddressCodec // consensus address codec
 }
 
 // DefaultConfig returns a sane default configuration suitable for nearly all
@@ -168,6 +169,7 @@ func DefaultConfig(factory TestFixtureFactory) Config {
 // MinimumAppConfig defines the minimum of modules required for a call to New to succeed
 func MinimumAppConfig() depinject.Config {
 	return configurator.NewAppConfig(
+		configurator.AccountsModule(),
 		configurator.AuthModule(),
 		configurator.BankModule(),
 		configurator.GenutilModule(),
@@ -185,8 +187,8 @@ func DefaultConfigWithAppConfig(appConfig depinject.Config) (Config, error) {
 		cdc                   codec.Codec
 		interfaceRegistry     codectypes.InterfaceRegistry
 		addressCodec          address.Codec
-		validatorAddressCodec runtime.ValidatorAddressCodec
-		consensusAddressCodec runtime.ConsensusAddressCodec
+		validatorAddressCodec address.ValidatorAddressCodec
+		consensusAddressCodec address.ConsensusAddressCodec
 	)
 
 	if err := depinject.Inject(
@@ -346,7 +348,6 @@ func New(l Logger, baseDir string, cfg Config) (NetworkI, error) {
 		apiAddr := ""
 		cmtCfg.RPC.ListenAddress = ""
 		appCfg.GRPC.Enable = false
-		appCfg.GRPCWeb.Enable = false
 		apiListenAddr := ""
 		if i == 0 {
 			if cfg.APIAddress != "" {
@@ -386,7 +387,6 @@ func New(l Logger, baseDir string, cfg Config) (NetworkI, error) {
 				appCfg.GRPC.Address = fmt.Sprintf("127.0.0.1:%s", port)
 			}
 			appCfg.GRPC.Enable = true
-			appCfg.GRPCWeb.Enable = true
 		}
 
 		logger := log.NewNopLogger()
@@ -455,7 +455,7 @@ func New(l Logger, baseDir string, cfg Config) (NetworkI, error) {
 			return nil, err
 		}
 
-		addr, secret, err := testutil.GenerateSaveCoinKey(kb, nodeDirName, mnemonic, true, algo)
+		addr, secret, err := testutil.GenerateSaveCoinKey(kb, nodeDirName, mnemonic, true, algo, sdk.GetFullBIP44Path())
 		if err != nil {
 			return nil, err
 		}
@@ -557,7 +557,8 @@ func New(l Logger, baseDir string, cfg Config) (NetworkI, error) {
 			WithAccountRetriever(cfg.AccountRetriever).
 			WithAddressCodec(cfg.AddressCodec).
 			WithValidatorAddressCodec(cfg.ValidatorAddressCodec).
-			WithConsensusAddressCodec(cfg.ValidatorAddressCodec)
+			WithConsensusAddressCodec(cfg.ConsensusAddressCodec).
+			WithNodeURI(cmtCfg.RPC.ListenAddress)
 
 		// Provide ChainID here since we can't modify it in the Comet config.
 		ctx.Viper.Set(flags.FlagChainID, cfg.ChainID)
@@ -602,7 +603,7 @@ func New(l Logger, baseDir string, cfg Config) (NetworkI, error) {
 
 	l.Log("started test network at height:", height)
 
-	// Ensure we cleanup incase any test was abruptly halted (e.g. SIGINT) as any
+	// Ensure we cleanup in case any test was abruptly halted (e.g. SIGINT) as any
 	// defer in a test would not be called.
 	trapSignal(network.Cleanup)
 

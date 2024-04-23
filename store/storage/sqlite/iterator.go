@@ -4,14 +4,13 @@ import (
 	"bytes"
 	"database/sql"
 	"fmt"
+	"slices"
 	"strings"
 
-	"golang.org/x/exp/slices"
-
-	"cosmossdk.io/store/v2"
+	corestore "cosmossdk.io/core/store"
 )
 
-var _ store.Iterator = (*iterator)(nil)
+var _ corestore.Iterator = (*iterator)(nil)
 
 type iterator struct {
 	statement  *sql.Stmt
@@ -22,7 +21,15 @@ type iterator struct {
 	err        error
 }
 
-func newIterator(storage *sql.DB, storeKey string, targetVersion uint64, start, end []byte, reverse bool) (*iterator, error) {
+func newIterator(db *Database, storeKey []byte, targetVersion uint64, start, end []byte, reverse bool) (*iterator, error) {
+	if targetVersion < db.earliestVersion {
+		return &iterator{
+			start: start,
+			end:   end,
+			valid: false,
+		}, nil
+	}
+
 	var (
 		keyClause = []string{"store_key = ?", "version <= ?"}
 		queryArgs []any
@@ -52,7 +59,7 @@ func newIterator(storage *sql.DB, storeKey string, targetVersion uint64, start, 
 
 	// Note, this is not susceptible to SQL injection because placeholders are used
 	// for parts of the query outside the store's direct control.
-	stmt, err := storage.Prepare(fmt.Sprintf(`
+	stmt, err := db.storage.Prepare(fmt.Sprintf(`
 	SELECT x.key, x.value
 	FROM (
 		SELECT key, value, version, tombstone,
@@ -92,11 +99,16 @@ func newIterator(storage *sql.DB, storeKey string, targetVersion uint64, start, 
 	return itr, nil
 }
 
-func (itr *iterator) Close() {
-	_ = itr.statement.Close()
+func (itr *iterator) Close() (err error) {
+	if itr.statement != nil {
+		err = itr.statement.Close()
+	}
+
 	itr.valid = false
 	itr.statement = nil
 	itr.rows = nil
+
+	return err
 }
 
 // Domain returns the domain of the iterator. The caller must not modify the
@@ -132,14 +144,13 @@ func (itr *iterator) Valid() bool {
 	return true
 }
 
-func (itr *iterator) Next() bool {
+func (itr *iterator) Next() {
 	if itr.rows.Next() {
 		itr.parseRow()
-		return itr.Valid()
+		return
 	}
 
 	itr.valid = false
-	return itr.valid
 }
 
 func (itr *iterator) Error() error {

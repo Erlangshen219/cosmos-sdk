@@ -12,6 +12,7 @@ import (
 
 	"github.com/cosmos/gogoproto/proto"
 
+	"cosmossdk.io/core/address"
 	"cosmossdk.io/math"
 	authtypes "cosmossdk.io/x/auth/types"
 	banktypes "cosmossdk.io/x/bank/types"
@@ -20,6 +21,7 @@ import (
 	"github.com/cosmos/cosmos-sdk/codec"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/ed25519"
 	"github.com/cosmos/cosmos-sdk/crypto/keys/secp256k1"
+	"github.com/cosmos/cosmos-sdk/testutil"
 	sdk "github.com/cosmos/cosmos-sdk/types"
 	"github.com/cosmos/cosmos-sdk/types/module"
 	simtypes "github.com/cosmos/cosmos-sdk/types/simulation"
@@ -35,19 +37,20 @@ const (
 
 // AppStateFn returns the initial application state using a genesis or the simulation parameters.
 // It calls AppStateFnWithExtendedCb with nil rawStateCb.
-func AppStateFn(cdc codec.JSONCodec, simManager *module.SimulationManager, genesisState map[string]json.RawMessage) simtypes.AppStateFn {
-	return AppStateFnWithExtendedCb(cdc, simManager, genesisState, nil)
+func AppStateFn(cdc codec.JSONCodec, addresCodec, validatorCodec address.Codec, simManager *module.SimulationManager, genesisState map[string]json.RawMessage) simtypes.AppStateFn {
+	return AppStateFnWithExtendedCb(cdc, addresCodec, validatorCodec, simManager, genesisState, nil)
 }
 
 // AppStateFnWithExtendedCb returns the initial application state using a genesis or the simulation parameters.
 // It calls AppStateFnWithExtendedCbs with nil moduleStateCb.
 func AppStateFnWithExtendedCb(
 	cdc codec.JSONCodec,
+	addresCodec, validatorCodec address.Codec,
 	simManager *module.SimulationManager,
 	genesisState map[string]json.RawMessage,
 	rawStateCb func(rawState map[string]json.RawMessage),
 ) simtypes.AppStateFn {
-	return AppStateFnWithExtendedCbs(cdc, simManager, genesisState, nil, rawStateCb)
+	return AppStateFnWithExtendedCbs(cdc, addresCodec, validatorCodec, simManager, genesisState, nil, rawStateCb)
 }
 
 // AppStateFnWithExtendedCbs returns the initial application state using a genesis or the simulation parameters.
@@ -58,6 +61,7 @@ func AppStateFnWithExtendedCb(
 // rawStateCb is the callback function to extend rawState.
 func AppStateFnWithExtendedCbs(
 	cdc codec.JSONCodec,
+	addressCodec, validatorCodec address.Codec,
 	simManager *module.SimulationManager,
 	genesisState map[string]json.RawMessage,
 	moduleStateCb func(moduleName string, genesisState interface{}),
@@ -102,11 +106,11 @@ func AppStateFnWithExtendedCbs(
 			if err != nil {
 				panic(err)
 			}
-			appState, simAccs = AppStateRandomizedFn(simManager, r, cdc, accs, genesisTimestamp, appParams, genesisState)
+			appState, simAccs = AppStateRandomizedFn(simManager, r, cdc, accs, genesisTimestamp, appParams, genesisState, addressCodec, validatorCodec)
 
 		default:
 			appParams := make(simtypes.AppParams)
-			appState, simAccs = AppStateRandomizedFn(simManager, r, cdc, accs, genesisTimestamp, appParams, genesisState)
+			appState, simAccs = AppStateRandomizedFn(simManager, r, cdc, accs, genesisTimestamp, appParams, genesisState, addressCodec, validatorCodec)
 		}
 
 		rawState := make(map[string]json.RawMessage)
@@ -134,7 +138,7 @@ func AppStateFnWithExtendedCbs(
 		}
 		notBondedCoins := sdk.NewCoin(stakingState.Params.BondDenom, notBondedTokens)
 		// edit bank state to make it have the not bonded pool tokens
-		bankStateBz, ok := rawState[banktypes.ModuleName]
+		bankStateBz, ok := rawState[testutil.BankModuleName]
 		// TODO(fdymylja/jonathan): should we panic in this case
 		if !ok {
 			panic("bank genesis state is missing")
@@ -162,7 +166,7 @@ func AppStateFnWithExtendedCbs(
 		// change appState back
 		for name, state := range map[string]proto.Message{
 			stakingtypes.ModuleName: stakingState,
-			banktypes.ModuleName:    bankState,
+			testutil.BankModuleName: bankState,
 		} {
 			if moduleStateCb != nil {
 				moduleStateCb(name, state)
@@ -194,6 +198,7 @@ func AppStateRandomizedFn(
 	genesisTimestamp time.Time,
 	appParams simtypes.AppParams,
 	genesisState map[string]json.RawMessage,
+	addressCodec, validatorCodec address.Codec,
 ) (json.RawMessage, []simtypes.Account) {
 	numAccs := int64(len(accs))
 	// generate a random amount of initial stake coins and a random initial
@@ -225,15 +230,17 @@ func AppStateRandomizedFn(
 	)
 
 	simState := &module.SimulationState{
-		AppParams:    appParams,
-		Cdc:          cdc,
-		Rand:         r,
-		GenState:     genesisState,
-		Accounts:     accs,
-		InitialStake: initialStake,
-		NumBonded:    numInitiallyBonded,
-		BondDenom:    sdk.DefaultBondDenom,
-		GenTimestamp: genesisTimestamp,
+		AppParams:      appParams,
+		Cdc:            cdc,
+		AddressCodec:   addressCodec,
+		ValidatorCodec: validatorCodec,
+		Rand:           r,
+		GenState:       genesisState,
+		Accounts:       accs,
+		InitialStake:   initialStake,
+		NumBonded:      numInitiallyBonded,
+		BondDenom:      sdk.DefaultBondDenom,
+		GenTimestamp:   genesisTimestamp,
 	}
 
 	simManager.GenerateGenesisStates(simState)
@@ -269,8 +276,8 @@ func AppStateFromGenesisFileFn(r io.Reader, cdc codec.JSONCodec, genesisFile str
 	}
 
 	var authGenesis authtypes.GenesisState
-	if appState[authtypes.ModuleName] != nil {
-		cdc.MustUnmarshalJSON(appState[authtypes.ModuleName], &authGenesis)
+	if appState[testutil.AuthModuleName] != nil {
+		cdc.MustUnmarshalJSON(appState[testutil.AuthModuleName], &authGenesis)
 	}
 
 	newAccs := make([]simtypes.Account, len(authGenesis.Accounts))

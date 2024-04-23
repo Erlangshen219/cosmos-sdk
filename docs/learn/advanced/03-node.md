@@ -20,7 +20,7 @@ The full-node client of any Cosmos SDK application is built by running a `main` 
 
 In general, developers will implement the `main.go` function with the following structure:
 
-* First, an [`encodingCodec`](./05-encoding.md) is instantiated for the application.
+* First, an [`encodingCodec`](https://docs.cosmos.network/main/learn/advanced/encoding) is instantiated for the application.
 * Then, the `config` is retrieved and config parameters are set. This mainly involves setting the Bech32 prefixes for [addresses](../beginner/03-accounts.md#addresses).
 
 ```go reference
@@ -81,7 +81,7 @@ Then, the instance of `app` is used to instantiate a new CometBFT node:
 https://github.com/cosmos/cosmos-sdk/blob/v0.50.0-alpha.0/server/start.go#L341-L378
 ```
 
-The CometBFT node can be created with `app` because the latter satisfies the [`abci.Application` interface](https://github.com/cometbft/cometbft/blob/v0.37.0/abci/types/application.go#L9-L35) (given that `app` extends [`baseapp`](./00-baseapp.md)). As part of the `node.New` method, CometBFT makes sure that the height of the application (i.e. number of blocks since genesis) is equal to the height of the CometBFT node. The difference between these two heights should always be negative or null. If it is strictly negative, `node.New` will replay blocks until the height of the application reaches the height of the CometBFT node. Finally, if the height of the application is `0`, the CometBFT node will call [`InitChain`](./00-baseapp.md#initchain) on the application to initialize the state from the genesis file.
+The CometBFT node can be created with `app` because the latter satisfies the [`abci.Application` interface](https://pkg.go.dev/github.com/cometbft/cometbft/abci/types#Application) (given that `app` extends [`baseapp`](./00-baseapp.md)). As part of the `node.New` method, CometBFT makes sure that the height of the application (i.e. number of blocks since genesis) is equal to the height of the CometBFT node. The difference between these two heights should always be negative or null. If it is strictly negative, `node.New` will replay blocks until the height of the application reaches the height of the CometBFT node. Finally, if the height of the application is `0`, the CometBFT node will call [`InitChain`](./00-baseapp.md#initchain) on the application to initialize the state from the genesis file.
 
 Once the CometBFT node is instantiated and in sync with the application, the node can be started:
 
@@ -92,5 +92,5 @@ https://github.com/cosmos/cosmos-sdk/blob/v0.50.0-alpha.0/server/start.go#L350-L
 Upon starting, the node will bootstrap its RPC and P2P server and start dialing peers. During handshake with its peers, if the node realizes they are ahead, it will query all the blocks sequentially in order to catch up. Then, it will wait for new block proposals and block signatures from validators in order to make progress.
 
 ## Other commands
-
-To discover how to concretely run a node and interact with it, please refer to our [Running a Node, API and CLI](../../user/run-node/01-run-node.md) guide.
+<!-- markdown-link-check-disable-next-line -->
+To discover how to concretely run a node and interact with it, please refer to our [Running a Node, API and CLI](../../user/run-node/01-run-node.md#configuring-the-node-using-apptoml-and-configtoml) guide.

@@ -2,8 +2,8 @@ package types
 
 import (
 	"encoding/json"
-	fmt "fmt"
-	strings "strings"
+	"fmt"
+	"strings"
 
 	"github.com/cosmos/gogoproto/proto"
 	protov2 "google.golang.org/protobuf/proto"
@@ -77,6 +77,14 @@ type (
 		Tx
 
 		GetTimeoutHeight() uint64
+	}
+
+	// TxWithUnordered extends the Tx interface by allowing a transaction to set
+	// the unordered field, which implicitly relies on TxWithTimeoutHeight.
+	TxWithUnordered interface {
+		TxWithTimeoutHeight
+
+		GetUnordered() bool
 	}
 
 	// HasValidateBasic defines a type that has a ValidateBasic method.

@@ -36,7 +36,7 @@ func TestValidateBasic(t *testing.T) {
 	invalidTx, err := suite.CreateTestTx(suite.ctx, privs, accNums, accSeqs, suite.ctx.ChainID(), signing.SignMode_SIGN_MODE_DIRECT)
 	require.NoError(t, err)
 
-	vbd := ante.NewValidateBasicDecorator()
+	vbd := ante.NewValidateBasicDecorator(suite.accountKeeper.GetEnvironment())
 	antehandler := sdk.ChainAnteDecorators(vbd)
 	_, err = antehandler(suite.ctx, invalidTx, false)
 
@@ -112,7 +112,7 @@ func TestConsumeGasForTxSize(t *testing.T) {
 		name  string
 		sigV2 signing.SignatureV2
 	}{
-		{"SingleSignatureData", signing.SignatureV2{PubKey: priv1.PubKey()}},
+		{"SingleSignatureData", signing.SignatureV2{PubKey: priv1.PubKey(), Data: &signing.SingleSignatureData{}}}, // single signature
 		{"MultiSignatureData", signing.SignatureV2{PubKey: priv1.PubKey(), Data: multisig.NewMultisig(2)}},
 	}
 
@@ -164,6 +164,7 @@ func TestConsumeGasForTxSize(t *testing.T) {
 
 			// Set suite.ctx with smaller simulated TxBytes manually
 			suite.ctx = suite.ctx.WithTxBytes(simTxBytes)
+			suite.ctx = suite.ctx.WithExecMode(sdk.ExecModeSimulate)
 
 			beforeSimGas := suite.ctx.GasMeter().GasConsumed()
 
